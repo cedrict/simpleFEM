@@ -75,7 +75,7 @@ type(tVEC) :: PETScRHS                         ! PETSc right hand side vector
 type(tVEC) :: PETScSOL                         ! PETSc solution vector
 type(tKSP) :: PETScCTXT                        ! PETSc KSP context
 type(tPC)  :: PETScPREC                        ! PETSc PC context
-
+PetscScalar, pointer :: LA_vec(:)
 
 ! No point putting this inside if(use_petsc) since the rest of the code does not support compilation without petsc,
 ! e.g. there are no guards placed around the petsc includes, petsc objects or petsc function calls
@@ -488,11 +488,14 @@ end do
 
 if (use_petsc) then
 
-   do iRow=0,Nfem-1
-   call VecSetValue(PETScRHS,iRow,B(iRow+1),INSERT_VALUES,iError) 
-   end do
-   call VecAssemblyBegin(PETScRHS,iError)
-   call VecAssemblyEnd(PETScRHS,iError)
+  call VecGetArrayF90(PETScRHS,LA_vec,iError) ; call check_error(iError)
+  do iRow=1,Nfem
+    LA_vec(iRow) = B(iRow)
+  end do
+  call VecRestoreArrayF90(PETScRHS,LA_vec,iError) ; call check_error(iError)
+  ! Call VecAssemblyBegin(),VecAssemblyEnd() to facilitate sending data to other rank
+  call VecAssemblyBegin(PETScRHS,iError) ; call check_error(iError)
+  call VecAssemblyEnd(PETScRHS,iError) ; call check_error(iError)
 
    !call MatCreateSeqAIJ(PETSC_COMM_WORLD,Nfem,Nfem,PETSC_DECIDE,PETSC_NULL_INTEGER,PETScMAAT,iError)
    !do iRow=1,Nfem
@@ -519,14 +522,15 @@ if (use_petsc) then
    call KSPSetFromOptions(PETScCTXT,iError)
    call KSPSolve(PETScCTXT,PETScRHS,PETScSOL,iError) ; call check_error(iError)
 
-   do i=1,np
-      j=(i-1)*ndof+1
-      jfake=j-1
-      call VecGetValues(PETScSOL,1,jfake,u(i),iError)
-      j=(i-1)*ndof+2
-      jfake=j-1
-      call VecGetValues(PETScSOL,1,jfake,v(i),iError)
-   end do
+  call VecGetArrayReadF90(PETScSOL,LA_vec,iError) ; call check_error(iError)
+  do i=1,np
+    j = (i-1)*ndof + 1
+    u(i) = LA_vec(j)
+    j = (i-1)*ndof + 2
+    v(i) = LA_vec(j)
+  end do
+  call VecRestoreArrayReadF90(PETScSOL,LA_vec,iError) ; call check_error(iError)
+
 
    print *,'v_x (m/M):',minval(u),maxval(u)
    print *,'v_y (m/M):',minval(v),maxval(v)
