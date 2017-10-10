@@ -133,6 +133,10 @@ if (use_petsc) then
    call VecSetFromOptions(PETScSOL,iError)
    call VecSetFromOptions(PETScRHS,iError)
 
+  call KSPCreate(PETSC_COMM_WORLD,PETScCTXT,iError) ; call check_error(iError)
+  call KSPSetOptionsPrefix(PETScCTXT,'A11_',iError) ; call check_error(iError)
+  call KSPSetFromOptions(PETScCTXT,iError) ; call check_error(iError)
+
 end if
 
 !==============================================!
@@ -518,10 +522,6 @@ end if
 !==============================================!
 
 if (use_petsc) then
-
-   call KSPCreate(PETSC_COMM_WORLD,PETScCTXT,iError)
-   call KSPSetOptionsPrefix(PETScCTXT,'A11_',iError)
-   call KSPSetFromOptions(PETScCTXT,iError)
 
    call KSPSetOperators(PETScCTXT,PETScMAAT,PETScMAAT,iError) ; call check_error(iError)
    call KSPSolve(PETScCTXT,PETScRHS,PETScSOL,iError) ; call check_error(iError)
