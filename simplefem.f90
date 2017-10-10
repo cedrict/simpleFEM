@@ -516,8 +516,6 @@ if (use_petsc) then
 
    call KSPCreate(PETSC_COMM_WORLD,PETScCTXT,iError)
    call KSPSetOperators(PETScCTXT,PETScMAAT,PETScMAAT,iError) ; call check_error(iError)
-   call KSPGetPC(PETScCTXT, PETScPREC, iError)
-   call PCSetFromOptions(PETScPREC, iError)
    call KSPSetFromOptions(PETScCTXT,iError)
    call KSPSolve(PETScCTXT,PETScRHS,PETScSOL,iError) ; call check_error(iError)
 
