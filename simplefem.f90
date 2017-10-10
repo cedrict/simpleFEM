@@ -74,6 +74,12 @@ type(tVEC) :: PETScSOL                         ! PETSc solution vector
 type(tKSP) :: PETScCTXT                        ! PETSc KSP context
 type(tPC)  :: PETScPREC                        ! PETSc PC context
 
+
+! No point putting this inside if(use_petsc) since the rest of the code does not support compilation without petsc,
+! e.g. there are no guards placed around the petsc includes, petsc objects or petsc function calls
+call PetscInitialize('petsc_default_options',iError)
+
+
 !==============================================!
 !=====[setup]==================================!
 !==============================================!
@@ -116,7 +122,6 @@ use_petsc=.true.
 
 if (use_petsc) then
 
-   call PetscInitialize('petsc_default_options',iError)
    call VecCreate(PETSC_COMM_WORLD,PETScSOL,iError)
    call VecCreate(PETSC_COMM_WORLD,PETScRHS,iError)
    call VecSetSizes(PETScSOL,PETSC_DECIDE,Nfem,iError)
@@ -542,14 +547,14 @@ close(234)
 !==============================================!
 
 if (use_petsc) then
+  call MatDestroy(PETScMAAT,iError)
+  call VecDestroy(PETScRHS, iError)
+  call VecDestroy(PETScSOL, iError)
+  call KSPDestroy(PETScCTXT, iError)
+end if
 
-call MatDestroy(PETScMAAT,iError)
-call VecDestroy(PETScRHS, iError)
-call VecDestroy(PETScSOL, iError)
-call KSPDestroy(PETScCTXT, iError)
 call PetscFinalize(iError)
 
-end if
 end program
 
 !==============================================================================
