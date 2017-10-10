@@ -518,8 +518,10 @@ end if
 if (use_petsc) then
 
    call KSPCreate(PETSC_COMM_WORLD,PETScCTXT,iError)
-   call KSPSetOperators(PETScCTXT,PETScMAAT,PETScMAAT,iError) ; call check_error(iError)
+   call KSPSetOptionsPrefix(PETScCTXT,'A11_',iError)
    call KSPSetFromOptions(PETScCTXT,iError)
+
+   call KSPSetOperators(PETScCTXT,PETScMAAT,PETScMAAT,iError) ; call check_error(iError)
    call KSPSolve(PETScCTXT,PETScRHS,PETScSOL,iError) ; call check_error(iError)
 
   call VecGetArrayReadF90(PETScSOL,LA_vec,iError) ; call check_error(iError)

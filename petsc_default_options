@@ -1,8 +1,8 @@
--vec_type seq
--ksp_type cg
--pc_type jacobi   
--info #mylog.dat
+-A11_ksp_type cg
+-A11_pc_type jacobi   
+-A11_ksp_converged_reason
+-A11_ksp_view 
+-A11_ksp_initial_guess_nonzero no
+#-A11_ksp_monitor_lg_residualnorm
 #-log_view
--ksp_view 
--ksp_initial_guess_nonzero no
-#-ksp_monitor_lg_residualnorm
+-options_left true
