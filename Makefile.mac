@@ -1,0 +1,16 @@
+FLAGS = -c -O3 -cpp -ffree-line-length-none
+
+include ${PETSC_DIR}/lib/petsc/conf/variables  
+
+F90      = ${PETSC_DIR}/${PETSC_ARCH}/bin/mpif90
+X11      = /usr/X11R6/lib
+MAKE     = make
+RANLIB   = ranlib
+
+LIBS= \
+-framework Accelerate\
+${PETSC_LIB} 
+
+INCLUDE = \
+-I${PETSC_DIR}/include
+
