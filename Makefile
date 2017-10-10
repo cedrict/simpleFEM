@@ -12,3 +12,11 @@ OBJECTS2D = linpack_d.o simplefem.o
 code:	$(OBJECTS2D)
 	$(F90) $(OPTIONS) $(OBJECTS2D) $(LIBS) -o simplefem
 
+clean:
+	-@rm -f simplefem
+	-@rm -f *.o
+
+cleandata:
+	-@rm -f OUT/solution_u.dat
+	-@rm -f OUT/solution_v.dat
+
