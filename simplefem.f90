@@ -19,11 +19,16 @@ integer nelx                                   ! number of elements in the x dir
 integer nely                                   ! number of elements in the y direction
 integer nel                                    ! number of elements
 integer Nfem                                   ! size of the FEM matrix 
+integer NZ                                     ! total nb of nonzeroes
 integer, dimension(:,:), allocatable :: icon   ! connectivity array
 integer, dimension(:), allocatable :: ipvt     ! work array needed by the solver 
+integer, dimension(:), allocatable :: csr_ia   ! rowpointer for csr storage
+integer, dimension(:), allocatable :: csr_ja   ! csr storage array
+integer, dimension(:), allocatable :: nb_nz    ! nb of nonzeroes per matrix row
                                                !
-integer i1,i2,i,j,k,iel,counter,iq,jq          !
-integer ik,jk,ikk,jkk,m1,m2,k1,k2,job,jfake(1) !
+integer i1,i2,j1,j2,i,j,k,iel,counter,iq,jq,ii,jj,ip,jp    !
+integer ik,jk,ikk,jkk,m1,m2,k1,k2,job,jfake(1),l,nsees !
+integer ij,inode
                                                !  
 real(8) Lx,Ly                                  ! size of the numerical domain
 real(8) viscosity                              ! dynamic viscosity $\mu$ of the material
@@ -37,6 +42,7 @@ real(8), dimension(:),   allocatable :: B      ! right hand side
 real(8), dimension(:,:), allocatable :: A      ! FEM matrix
 real(8), dimension(:),   allocatable :: work   ! work array needed by the solver
 real(8), dimension(:),   allocatable :: bc_val ! array containing bc values
+real(8), dimension(:),   allocatable :: csr_mat! csr storage of matrix nonzeroes
                                                !
 real(8), external :: b1,b2,uth,vth,pth         ! body force and analytical solution
 real(8) rq,sq,wq                               ! local coordinate and weight of qpoint
@@ -54,10 +60,9 @@ real(8), dimension(3,3) :: Kmat                ! K matrix
 real(8), dimension(3,3) :: Cmat                ! C matrix
 real(8) Aref                                   !
 real(8) eps                                    !
-real(8) rcond                                  !
+real(8) rcond,fixt                                  !
                                                !
 logical, dimension(:), allocatable :: bc_fix   ! prescribed b.c. array
-logical, dimension(:,:), allocatable :: C      ! non-zero terms in FEM matrix
                                                !
 !==============================================!
 
@@ -76,15 +81,15 @@ type(tPC)  :: PETScPREC                        ! PETSc PC context
 Lx=1.d0
 Ly=1.d0
 
-nnx=21
-nny=21
+nnx=29
+nny=29
 np=nnx*nny
 
 nelx=nnx-1
 nely=nny-1
 nel=nelx*nely
 
-penalty=1.d7
+penalty=1.d4
 
 viscosity=1.d0
 density=1.d0
@@ -100,6 +105,8 @@ Kmat(3,1)=0.d0 ; Kmat(3,2)=0.d0 ; Kmat(3,3)=0.d0
 Cmat(1,1)=2.d0 ; Cmat(1,2)=0.d0 ; Cmat(1,3)=0.d0  
 Cmat(2,1)=0.d0 ; Cmat(2,2)=2.d0 ; Cmat(2,3)=0.d0  
 Cmat(3,1)=0.d0 ; Cmat(3,2)=0.d0 ; Cmat(3,3)=1.d0  
+
+NZ=((4*4+(2*(nnx-2)+2*(nny-2))*6+(nnx-2)*(nny-2)*9)) * (ndof**2) !; print *,nz
 
 !==============================================!
 !===[petsc initialization]=====================!
@@ -130,10 +137,13 @@ allocate(v(np))
 allocate(icon(m,nel))
 allocate(A(Nfem,Nfem))
 allocate(B(Nfem))
-allocate(C(Nfem,Nfem))
 allocate(bc_fix(Nfem))
 allocate(bc_val(Nfem))
 allocate(press(nel))
+allocate(csr_ia(Nfem+1))
+allocate(csr_ja(NZ))
+allocate(nb_nz(Nfem))
+allocate(csr_mat(NZ))
 
 !==============================================!
 !===[grid points setup]========================!
@@ -183,6 +193,54 @@ end do
 !close(123)
 
 !==============================================!
+!=====[fill ia,ja]=============================!
+!==============================================!
+
+NZ=0
+csr_ia(1)=1
+do j1=1,nny
+do i1=1,nnx
+   ip=(j1-1)*nnx+i1 ! node number
+   do k=1,ndof
+      ii=2*(ip-1) + k ! address in the matrix
+      nsees=0
+      do j2=-1,1 ! exploring neighbouring nodes
+      do i2=-1,1
+         i=i1+i2
+         j=j1+j2
+         if (i>=1 .and. i<= nnx .and. j>=1 .and. j<=nny) then ! if node exists
+            jp=(j-1)*nnx+i  ! node number of neighbour 
+            do l=1,ndof
+               jj=2*(jp-1)+l  ! address in the matrix
+               nz=nz+1
+               csr_ja(nz)=jj
+               nsees=nsees+1
+            end do
+         end if
+      end do
+      end do
+      csr_ia(ii+1)=csr_ia(ii)+nsees
+   end do ! loop over ndofs
+end do
+end do
+
+!print *,nz
+!print *,minval(csr_ia), maxval(csr_ia)
+!print *,minval(csr_ja), maxval(csr_ja)
+
+!==============================================!
+!=====[fill nb_nz]=============================!
+!==============================================!
+
+nb_nz=0
+do i=1,Nfem
+   nb_nz(i)=(csr_ia(i+1)-csr_ia(i))
+end do
+if (sum(nb_nz)/=NZ) stop 'pb with nb_nz'
+!print *,minval(nb_nz), maxval(nb_nz)
+
+
+!==============================================!
 !=====[define bc]==============================!
 !==============================================!
 
@@ -222,7 +280,7 @@ end do
 
 A=0.d0
 B=0.d0
-C=.false.
+csr_mat=0.d0
 
 do iel=1,nel
 
@@ -349,6 +407,29 @@ do iel=1,nel
 
       Ael=Ael + matmul(transpose(Bmat),matmul(penalty*Kmat,Bmat))*wq*jcob
 
+      !======================================
+      !=====[impose boundary conditions]=====
+      !======================================
+    
+      do k1=1,m  
+         ik=icon(k1,iel)  
+         do i1=1,ndof    
+            m1=(ik-1)*ndof+i1    
+            if (bc_fix(m1)) then  
+            fixt=bc_val(m1) 
+            i=(k1-1)*ndof+i1    
+            Aref=Ael(i,i)    
+            do j=1,m*ndof    
+               Bel(j)=Bel(j)-Ael(j,i)*fixt 
+               Ael(i,j)=0.d0    
+               Ael(j,i)=0.d0    
+            enddo    
+            Ael(i,i)=Aref    
+            Bel(i)=Aref*fixt    
+            endif    
+         enddo    
+      enddo    
+
       !=====================
       !=====[assemble]======
       !=====================
@@ -363,8 +444,12 @@ do iel=1,nel
                do i2=1,ndof
                   jkk=ndof*(k2-1)+i2
                   m2=ndof*(jk-1)+i2
+                  do k=csr_ia(m1),csr_ia(m1+1)-1    
+                     if (csr_ja(k)==m2) then  
+                        csr_mat(k)=csr_mat(k)+Ael(ikk,jkk)  
+                     end if    
+                  end do    
                   A(m1,m2)=A(m1,m2)+Ael(ikk,jkk)
-                  C(m1,m2)=.true.
                end do
             end do
             B(m1)=B(m1)+Bel(ikk)
@@ -372,34 +457,6 @@ do iel=1,nel
       end do
 
 end do
-
-!==============================================!
-!=====[impose b.c.]============================!
-!==============================================!
-
-do i=1,Nfem
-    if (bc_fix(i)) then
-      Aref=A(i,i)
-      do j=1,Nfem
-         B(j)=B(j)-A(i,j)*bc_val(i)
-         A(i,j)=0.d0
-         A(j,i)=0.d0
-      enddo
-      A(i,i)=Aref
-      B(i)=Aref*bc_val(i)
-   endif
-enddo
-
-!open(unit=123,file='OUT/matrix.dat',status='replace')
-!open(unit=234,file='OUT/rhs.dat',status='replace')
-!do i=1,Nfem
-!   do j=1,Nfem
-!      if (C(i,j)) write(123,'(2i6,f20.10)') i,Nfem-j,A(i,j)
-!   end do
-!   write(234,'(i6,f20.10)') i,B(i)
-!end do
-!close(123)
-!close(234)
 
 !==============================================!
 
@@ -411,19 +468,19 @@ if (use_petsc) then
    call VecAssemblyBegin(PETScRHS,iError)
    call VecAssemblyEnd(PETScRHS,iError)
 
-   !******************************************************************
-   ! this will be replaced by MatCreateSeqAIJWithArrays as soon as 
-   ! we put CSR storage in this code :)
-   !******************************************************************
+   csr_ia=csr_ia-1
+   csr_ja=csr_ja-1
+   call MatCreateSeqAIJWithArrays(PETSC_COMM_WORLD,Nfem,Nfem,csr_ia,csr_ja,csr_mat,PETScMAAT,iError)
 
-   call MatCreateSeqAIJ(PETSC_COMM_WORLD,Nfem,Nfem,PETSC_DECIDE,PETSC_NULL_INTEGER,PETScMAAT,iError)
-   do iRow=1,Nfem
-   do iCol=1,Nfem
-   if (C(iRow,iCol)) then
-      call MatSetValues(PETScMAAT,1,iRow-1,1,iCol-1,A(iRow,iCol),INSERT_VALUES,iError)
-   endif
-   enddo
-   enddo
+   !call MatCreateSeqAIJ(PETSC_COMM_WORLD,Nfem,Nfem,PETSC_DECIDE,PETSC_NULL_INTEGER,PETScMAAT,iError)
+   !do iRow=1,Nfem
+   !do iCol=1,Nfem
+   !if (C(iRow,iCol)) then
+   !   call MatSetValues(PETScMAAT,1,iRow-1,1,iCol-1,A(iRow,iCol),INSERT_VALUES,iError)
+   !endif
+   !enddo
+   !enddo
+
    call MatAssemblyBegin(PETScMAAT,MAT_FINAL_ASSEMBLY,iError)
    call MatAssemblyEnd(PETScMAAT,MAT_FINAL_ASSEMBLY,iError)
 
@@ -451,13 +508,16 @@ if (use_petsc) then
       call VecGetValues(PETScSOL,1,jfake,v(i),iError)
    end do
 
+   print *,'v_x (m/M):',minval(u),maxval(u)
+   print *,'v_y (m/M):',minval(v),maxval(v)
+
 else ! use linpack subroutines
 
    job=0
    allocate(work(Nfem))
    allocate(ipvt(Nfem))
-   !call DGECO (A, Nfem, Nfem, ipvt, rcond, work)
-   !call DGESL (A, Nfem, Nfem, ipvt, B, job)
+   call DGECO (A, Nfem, Nfem, ipvt, rcond, work)
+   call DGESL (A, Nfem, Nfem, ipvt, B, job)
    deallocate(ipvt)
    deallocate(work)
 

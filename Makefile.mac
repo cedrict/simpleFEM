@@ -1,4 +1,4 @@
-FLAGS = -c -O3 -cpp -ffree-line-length-none
+FLAGS = -c -O3 -cpp -ffree-line-length-none -fbounds-check
 
 include ${PETSC_DIR}/lib/petsc/conf/variables  
 

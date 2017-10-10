@@ -1,5 +1,8 @@
 -vec_type seq
-
 -ksp_type cg
-
--pc_type gamg
+-pc_type jacobi   
+-info #mylog.dat
+#-log_view
+-ksp_view 
+-ksp_initial_guess_nonzero no
+#-ksp_monitor_lg_residualnorm

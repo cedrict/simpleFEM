@@ -2,7 +2,7 @@
 
 include Makefile.mac
 
-OBJECTS2D = simplefem.o
+OBJECTS2D = linpack_d.o simplefem.o
 
 .f.o:
 	$(F90) $(FLAGS) $(INCLUDE) $*.f
