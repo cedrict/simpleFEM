@@ -76,6 +76,7 @@ type(tVEC) :: PETScSOL                         ! PETSc solution vector
 type(tKSP) :: PETScCTXT                        ! PETSc KSP context
 type(tPC)  :: PETScPREC                        ! PETSc PC context
 PetscScalar, pointer :: LA_vec(:)
+PetscBool flg
 
 ! No point putting this inside if(use_petsc) since the rest of the code does not support compilation without petsc,
 ! e.g. there are no guards placed around the petsc includes, petsc objects or petsc function calls
@@ -98,6 +99,7 @@ nely=nny-1
 nel=nelx*nely
 
 penalty=1.d4
+call PetscOptionsGetReal(PETSC_NULL_OPTIONS,PETSC_NULL_CHARACTER,'-penalty',penalty,flg,iError) ; call check_error(iError)
 
 viscosity=1.d0
 density=1.d0

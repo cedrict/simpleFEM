@@ -1,3 +1,4 @@
+-penalty 1.0e4
 -A11_ksp_type cg
 -A11_pc_type jacobi   
 -A11_ksp_converged_reason
