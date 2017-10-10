@@ -24,6 +24,8 @@ integer, dimension(:,:), allocatable :: icon   ! connectivity array
 integer, dimension(:), allocatable :: ipvt     ! work array needed by the solver 
 integer, dimension(:), allocatable :: csr_ia   ! rowpointer for csr storage
 integer, dimension(:), allocatable :: csr_ja   ! csr storage array
+integer, dimension(:), allocatable :: csr_ia_p   ! rowpointer for csr storage
+integer, dimension(:), allocatable :: csr_ja_p   ! csr storage array
 integer, dimension(:), allocatable :: nb_nz    ! nb of nonzeroes per matrix row
                                                !
 integer i1,i2,j1,j2,i,j,k,iel,counter,iq,jq,ii,jj,ip,jp    !
@@ -147,6 +149,8 @@ allocate(bc_val(Nfem))
 allocate(press(nel))
 allocate(csr_ia(Nfem+1))
 allocate(csr_ja(NZ))
+allocate(csr_ia_p(Nfem+1))
+allocate(csr_ja_p(NZ))
 allocate(nb_nz(Nfem))
 allocate(csr_mat(NZ))
 
@@ -244,6 +248,23 @@ end do
 if (sum(nb_nz)/=NZ) stop 'pb with nb_nz'
 !print *,minval(nb_nz), maxval(nb_nz)
 
+
+if (use_petsc) then
+  csr_mat=0.d0
+  csr_ia_p = csr_ia
+  csr_ja_p = csr_ja
+
+  csr_ia_p = csr_ia_p - 1
+  csr_ja_p = csr_ja_p - 1
+
+  ! Create petsc matrix using csr and empty values
+  ! Creating it here allows you to re-use it
+  ! When using this function, fortran arrays are shared with the petsc mat.
+  ! Since petsc requires indices starting with 0, but your assembly uses indices starting with 1, it
+  ! it simpler to simply copy the ia, ja arrays which petsc will use
+  call MatCreateSeqAIJWithArrays(PETSC_COMM_WORLD,Nfem,Nfem,csr_ia_p,csr_ja_p,csr_mat,PETScMAAT,iError)
+
+end if
 
 !==============================================!
 !=====[define bc]==============================!
@@ -472,10 +493,6 @@ if (use_petsc) then
    end do
    call VecAssemblyBegin(PETScRHS,iError)
    call VecAssemblyEnd(PETScRHS,iError)
-
-   csr_ia=csr_ia-1
-   csr_ja=csr_ja-1
-   call MatCreateSeqAIJWithArrays(PETSC_COMM_WORLD,Nfem,Nfem,csr_ia,csr_ja,csr_mat,PETScMAAT,iError)
 
    !call MatCreateSeqAIJ(PETSC_COMM_WORLD,Nfem,Nfem,PETSC_DECIDE,PETSC_NULL_INTEGER,PETScMAAT,iError)
    !do iRow=1,Nfem
