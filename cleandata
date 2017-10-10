@@ -1,6 +1,0 @@
-rm OUT/solution_u.dat
-rm OUT/solution_v.dat
-rm simplefem
-rm *.o
-
-
